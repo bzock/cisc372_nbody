@@ -53,12 +53,11 @@ __global__ void accelK(vector3* pos, double* mass, vector3* accels, int n) {
         if (i == j) {
             FILL_VECTOR(accels[i*n+j], 0, 0, 0);
         } else {
-            vector3 distance;
-            int k;
-            for (k = 0; k < 3; k++)
-                distance[k] = pos[i][k] - shPos[threadIdx.x][k];
+            double dx = myX - shPos[threadIdx.x][0];
+			double dy = myY - shPos[threadIdx.x][1];
+			double dz = myZ - shPos[threadIdx.x][2];
 
-            double magsq = distance[0]*distance[0] + distance[1]*distance[1] + distance[2]*distance[2] + 1e-12;
+            double magsq = dx * dx + dy * dy + dz * dz + 1e-12;
             double mag = sqrt(magsq);
             double accel = -1 * GRAV_CONSTANT * shMass[threadIdx.x] / magsq;
 
