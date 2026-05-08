@@ -4,14 +4,21 @@
 #include "config.h"
 #include <cuda_runtime.h>
 
+
 //16 is best number of threads per block for system
-#define TILE 16
+#define BLOCK 16
+//values to retain between function calls
+static vector3* d_pos = 0;
+static vector3* d_vel = 0;
+static double*  d_mass = 0;
+static vector3* d_accels = 0;
+static int allocated_n = 0;
 
 //kernel 1 function will calculate acceleration of objects
 __global__ void accelK(vector3* pos, double* mass, vector3* accels, int n) {
 
-    __shared__ vector3 shPos[TILE];
-    __shared__ double  shMass[TILE];
+    __shared__ vector3 shPos[BLOCK];
+    __shared__ double  shMass[BLOCK];
     //thread id
     int i = blockIdx.y * blockDim.y + threadIdx.y;
     int j = blockIdx.x * blockDim.x + threadIdx.x;
@@ -30,7 +37,7 @@ __global__ void accelK(vector3* pos, double* mass, vector3* accels, int n) {
             shPos[threadIdx.x][0] = pos[j][0];
             shPos[threadIdx.x][1] = pos[j][1];
             shPos[threadIdx.x][2] = pos[j][2];
-            shMass[threadIdx.x]   = mass[j];
+            shMass[threadIdx.x]  = mass[j];
         } else {
             shPos[threadIdx.x][0] = 0.0;
             shPos[threadIdx.x][1] = 0.0;
@@ -46,15 +53,18 @@ __global__ void accelK(vector3* pos, double* mass, vector3* accels, int n) {
         if (i == j) {
             FILL_VECTOR(accels[i*n+j], 0, 0, 0);
         } else {
-            int k     = threadIdx.x;
-            double dx = myX - shPos[k][0];
-            double dy = myY - shPos[k][1];
-            double dz = myZ - shPos[k][2];
-            double mag_sq = dx*dx + dy*dy + dz*dz + 1e-12;
-            double inv    = rsqrt(mag_sq);
-            double inv3   = inv * inv * inv;
-            double scale  = -GRAV_CONSTANT * shMass[k] * inv3;
-            FILL_VECTOR(accels[i*n+j], scale*dx, scale*dy, scale*dz);
+            vector3 distance;
+            int k;
+            for (k = 0; k < 3; k++)
+                distance[k] = pos[i][k] - shPos[threadIdx.x][k];
+
+            double magsq = distance[0]*distance[0] + distance[1]*distance[1] + distance[2]*distance[2] + 1e-12;
+            double mag = sqrt(magsq);
+            double accel = -1 * GRAV_CONSTANT * shMass[threadIdx.x] / magsq;
+
+            accels[i * n + j][0] = accel * distance[0] / mag;
+            accels[i * n + j][1] = accel * distance[1] / mag;
+            accels[i * n + j][2] = accel * distance[2] / mag;
         }
     }
 } 
@@ -80,27 +90,6 @@ __global__ void reduceK(vector3* pos, vector3* vel, vector3* accels, int n) {
     for (int k = 0; k < 3; k++) {
         vel[i][k] += accel_sum[k] * INTERVAL;
         pos[i][k] += vel[i][k] * INTERVAL;
-    }
-}
-
-//set values static to retain value between function calls
-static vector3* d_pos;
-static vector3* d_vel;
-static double*  d_mass;
-static vector3* d_accels;
-static int allocated_n;
-//cleanup function
-extern "C" void cleanup() {
-    if (d_pos) {
-        cudaFree(d_pos);
-        cudaFree(d_vel);
-        cudaFree(d_mass);
-        cudaFree(d_accels);
-        d_pos = NULL;
-        d_vel = NULL;
-        d_mass = NULL;
-        d_accels = NULL;
-        allocated_n = 0;
     }
 }
 
