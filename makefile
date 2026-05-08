@@ -2,11 +2,11 @@ FLAGS= -DDEBUG
 LIBS= -lm
 ALWAYS_REBUILD=makefile
 
-nbody: nbody.o compute.o
+nbody: nbody.o computeCUDA.o
 	nvcc $(FLAGS) $^ -o $@ $(LIBS)
 nbody.o: nbody.c planets.h config.h vector.h $(ALWAYS_REBUILD)
 	gcc $(FLAGS) -c $< 
-compute.o: computeCUDA.cu config.h vector.h $(ALWAYS_REBUILD)
+computeCUDA.o: computeCUDA.cu config.h vector.h $(ALWAYS_REBUILD)
 	nvcc $(FLAGS) -c $< 
 clean:
 	rm -f *.o nbody 
