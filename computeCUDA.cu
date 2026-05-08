@@ -61,9 +61,9 @@ __global__ void accelK(vector3* pos, double* mass, vector3* accels, int n) {
             double mag = sqrt(magsq);
             double accel = -1 * GRAV_CONSTANT * shMass[threadIdx.x] / magsq;
 
-            accels[i * n + j][0] = accel * distance[0] / mag;
-            accels[i * n + j][1] = accel * distance[1] / mag;
-            accels[i * n + j][2] = accel * distance[2] / mag;
+            accels[i * n + j][0] = accel * dx / mag;
+            accels[i * n + j][1] = accel * dy / mag;
+            accels[i * n + j][2] = accel * dz / mag;
         }
     }
 } 
